@@ -6,8 +6,13 @@ import struct
 
 @unique
 class WaveData(Enum):
-    Square50 = 16 * [0] + 16 * [15]
-
+    """
+    Wave data with values between 0 and 15 (4 bits).
+    """
+    square_50 = 16 * [0] + 16 * [15]
+    triangle = [ i for i in range(16)] + [ i for i in range(15,-1,-1)]
+    saw_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
+    noise = 2 * [0,15,15,0, 15,0,0,15, 15,15,0,0, 15,15,0,15]
 
 class Waveform():
     """
@@ -97,8 +102,8 @@ class SquareChannel():
     
 class Oscillator():
 
-    def __init__(self, sample_rate=44100, freq=1):
-        self._waveform = Waveform(WaveData.Square50)
+    def __init__(self, wave_data: WaveData = WaveData.square_50, sample_rate=44100, freq=1):
+        self._waveform = Waveform(wave_data)
         self._sample_rate = sample_rate
         # The number of values to get from the wave data pr. sample
         self._samples_pr_wave_value = sample_rate / (freq * len(self._waveform)) 
@@ -129,22 +134,75 @@ class Oscillator():
             # Reset count towards next time we update the output
             self._samples_served -= self._samples_pr_wave_value
 
-        return v
-        #samples_to_get = n * self._samples_pr_wave_value
-        #print("samples_to_get:", samples_to_get)
-        #return [ next(self._waveform) for i in range(int(samples_to_get)) ]
+        # Shift down by 8 becauze we have 16 values in waveforms
+        return v - 7
 
 
-o = Oscillator(sample_rate = 44100, freq=440)
+class Mixer():
+    """
+    An iterator mixing a number of oscillators.
+    """
+    def __init__(self, sample_rate = 44100):
+        self._oscillators: List[Oscillator] = []
+        self._sample_rate = sample_rate
+        self._volume = 10
+
+    @property
+    def no_of_oscillators(self):
+        """
+        How many oscillators in the mixer.
+        """
+        return len(self._oscillators)
+
+    @property
+    def sample_rate(self):
+        return self._sample_rate
+
+    def add_oscillator(self, o: Oscillator) -> int:
+        """
+        Add an oscillator. Return the index of the new oscillator.
+        """
+        # Oscillator must match mixer's sample rate
+        assert o.sample_rate == self._sample_rate
+        self._oscillators.append(o)
+        return len(self._oscillators)-1
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> int:
+        """
+        Sum of all oscillators divided by no of oscillators.
+        """
+        # FIXME: 4 bits here?
+        v = sum( [ next(o) for o in self._oscillators ] ) // len(self._oscillators)
+        return int(self._volume * v)
+
+o_sq50_1 = Oscillator(wave_data = WaveData.square_50, freq=220)
+o_sq50_2 = Oscillator(wave_data = WaveData.square_50, freq=210)
+
+o_saw = Oscillator(wave_data = WaveData.saw_up, freq=220)
+o_tri = Oscillator(wave_data = WaveData.triangle, freq=110)
+o_noise = Oscillator(wave_data = WaveData.noise, freq=110)
+
+
+m = Mixer()
+#m.add_oscillator(o_sq50_1)
+#m.add_oscillator(o_sq50_2)
+
+#m.add_oscillator(o_noise)
+m.add_oscillator(o_tri)
 
 wave_file = wave.open('test.wav', "wb")
-wave_file.setnchannels(1)
-wave_file.setframerate(o.sample_rate)
-wave_file.setsampwidth(1)
+wave_file.setnchannels(1) # Mono
+wave_file.setframerate(m.sample_rate)
+wave_file.setsampwidth(2)
 
-for i in range(2 * o.sample_rate):
+# Get samples from mixer. Write to file.
+for i in range(2 * m.sample_rate):
     #print([ next(o) for i in range(64)])
-    s = struct.pack('<h', 100 * (next(o) - 8 ))
+    v = 100 * (next(m))
+    s = struct.pack('<h', v)
     wave_file.writeframesraw(s)
 
 wave_file.close()
