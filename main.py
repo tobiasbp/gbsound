@@ -7,16 +7,23 @@ import struct
 @unique
 class WaveData(Enum):
     """
-    Wave data with values between 0 and 15 (4 bits).
+    Raw wave data with 32 values between 0 and 15 (4 bits).
     """
     square_50 = 16 * [0] + 16 * [15]
     triangle = [ i for i in range(16)] + [ i for i in range(15,-1,-1)]
     saw_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
     noise = 2 * [0,15,15,0, 15,0,0,15, 15,15,0,0, 15,15,0,15]
 
+@unique
+class EnvelopeData(Enum):
+    """
+    Envelopes to shape the output of an oscillator. 
+    """
+    ramp_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
+
 class Waveform():
     """
-    A waveform of length 32
+    A waveform iterator of length 32
     """
 
     def __init__(self, wave_data: WaveData):
@@ -45,61 +52,67 @@ class Waveform():
     def __len__(self):
         return self._length
 
+@unique
+class Envelope(Enum):
+    """
+    16 step envelopes with values between 0.0 and 1.0 for attenuating oscillator output.
+    """
+    ramp_up = [ v/15 for v in range(0,16) ]
+    ramp_down = list(reversed([ v/15 for v in range(0,16) ]))
+    on = 16 * [1.0]
+    off = 16 * [0.0]
 
-class SquareChannel():
-    # Envelopes are linear
-    samples_pr_cycle = 32
+class Amplifier():
+    """
+    Envelopes with 16 (4 bits) steps of values between 0-15 (4 bits)
+    """
 
-    def __init__(self, freq:int=440, duty_cycle: int = 2, sample_rate=44100, buffer_size=256):
-        assert duty_cycle in [0,1,2,3]
-
-        self.samples_pr_cycle:int=32
-        assert self.samples_pr_cycle % 2 == 0
+    def __init__(self, envelope=Envelope.on, sample_rate = 44100, freq = 64):
         
-        self.duty_cycle = duty_cycle
-        # The waveform
-        self.freq = freq
-        self.sample_rate = sample_rate
+        self._sample_rate = sample_rate
+        self._freq = freq
+        self._envelope = envelope.value
+        assert len(self._envelope) == 16
+
+        self._samples_pr_step: float = self._sample_rate / self._freq
+
+        self._samples_served = 0
+
+        print("Samples pr step: ",self._samples_pr_step)
+        print("Enevlope: ", self._envelope )
+
+        self.reset()
 
     @property
-    def duty_cycle(self):
-        return self._duty_cycle
+    def sample_rate(self):
+        return self._sample_rate
 
-    @duty_cycle.setter
-    def duty_cycle(self, new_duty_cycle):
-        on_samples =  [4, 8, 16, 24][new_duty_cycle]
-        off_samples = SquareChannel.samples_pr_cycle - on_samples
-        self.wave = off_samples * [0] + on_samples * [15]
-        self._duty_cycle = new_duty_cycle
+    def reset(self):
+        self._pos = 0
+        self._samples_served = 0
 
-    @property
-    def freq(self):
-        return self._freq
-    
-    @freq.setter
-    def freq(self, new_freq):
-        self.__step_size_ms: float = 1000 / (new_freq * SquareChannel.samples_pr_cycle)
-        self._freq = new_freq
-        self._time_ms = 0.0
-        self._wave_length_ms = SquareChannel.samples_pr_cycle * self.__step_size_ms
+    def __iter__(self):
+        return self
 
-    @property
-    def step_size_ms(self):
-        return self.__step_size_ms
+    def __next__(self):
+        # Get the value for the current step of envelope.
+        # Value is 0 if envelope is over 
+        try:
+            v = self._envelope[self._pos]
+        except IndexError:
+            return self._envelope[-1]
 
-    @property
-    def time_ms(self):
-        return self._time_ms
+        self._samples_served += 1
 
-    def get_samples():
-        """
-        Get the next no_of_sample samples
-        """
-    #def sample(self, delta_time):
-    #    self._time_ms += delta_time
-    #    step_no = (self._time_ms % self._wave_length_ms) // self.__step_size_ms
-    #    return self.wave[int(step_no)]
-    
+        # Advance to next position in the envelope
+        if self._samples_served >= self._samples_pr_step:
+            self._pos += 1
+            self._samples_served -= self._samples_pr_step
+        #print(self._samples_served)
+        #print(self._pos)
+        return v
+
+
 class Oscillator():
 
     def __init__(self, wave_data: WaveData = WaveData.square_50, sample_rate=44100, freq=1):
@@ -144,6 +157,7 @@ class Mixer():
     """
     def __init__(self, sample_rate = 44100):
         self._oscillators: List[Oscillator] = []
+        self._amplifiers: List[Amplifier] = []
         self._sample_rate = sample_rate
         self._volume = 10
 
@@ -165,7 +179,10 @@ class Mixer():
         # Oscillator must match mixer's sample rate
         assert o.sample_rate == self._sample_rate
         self._oscillators.append(o)
-        return len(self._oscillators)-1
+
+        # Add an amplifier for the oscillator
+        self._amplifiers.append(Amplifier(sample_rate=self._sample_rate))
+        return len(self._oscillators) - 1
 
     def __iter__(self):
         return self
@@ -174,9 +191,16 @@ class Mixer():
         """
         Sum of all oscillators divided by no of oscillators.
         """
-        # FIXME: 4 bits here?
-        v = sum( [ next(o) for o in self._oscillators ] ) // len(self._oscillators)
-        return int(self._volume * v)
+        # Build a list of oscillators outputs attenuated by amplifiers
+        v = []
+        for i in range(len(self._oscillators)):
+            a = next(self._amplifiers[i])
+            o = next(self._oscillators[i])
+            # print("a:", a, "o", o)
+            v.append(self._volume * a * o)
+
+        # Sum the outputs and divide by nr. of oscillators
+        return int(sum(v) / len(self._oscillators))
 
 o_sq50_1 = Oscillator(wave_data = WaveData.square_50, freq=220)
 o_sq50_2 = Oscillator(wave_data = WaveData.square_50, freq=210)
@@ -199,9 +223,10 @@ wave_file.setframerate(m.sample_rate)
 wave_file.setsampwidth(2)
 
 # Get samples from mixer. Write to file.
-for i in range(2 * m.sample_rate):
+for i in range(1 * m.sample_rate):
     #print([ next(o) for i in range(64)])
     v = 100 * (next(m))
+    #print(v)
     s = struct.pack('<h', v)
     wave_file.writeframesraw(s)
 
