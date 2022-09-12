@@ -1,5 +1,5 @@
 from enum import unique
-from typing import List
+from typing import List, Optional
 from enum import Enum, auto
 import wave
 import struct
@@ -62,9 +62,9 @@ class Envelope(Enum):
     on = 16 * [1.0]
     off = 16 * [0.0]
 
-class Amplifier():
+class Attenuator():
     """
-    Envelopes with 16 (4 bits) steps of values between 0-15 (4 bits)
+    Time based attenuation with 16 (4 bits) steps of values between 0-15 (4 bits)
     """
 
     def __init__(self, envelope=Envelope.on, sample_rate = 44100, freq = 64):
@@ -157,7 +157,7 @@ class Mixer():
     """
     def __init__(self, sample_rate = 44100):
         self._oscillators: List[Oscillator] = []
-        self._amplifiers: List[Amplifier] = []
+        self._attenuators: List[Attenuator] = []
         self._sample_rate = sample_rate
         self._volume = 10
 
@@ -172,7 +172,7 @@ class Mixer():
     def sample_rate(self):
         return self._sample_rate
 
-    def add_oscillator(self, o: Oscillator) -> int:
+    def add_oscillator(self, o: Oscillator, envelope: Optional[Envelope] = Envelope.on) -> int:
         """
         Add an oscillator. Return the index of the new oscillator.
         """
@@ -180,8 +180,8 @@ class Mixer():
         assert o.sample_rate == self._sample_rate
         self._oscillators.append(o)
 
-        # Add an amplifier for the oscillator
-        self._amplifiers.append(Amplifier(sample_rate=self._sample_rate))
+        # Add an attenuator for the oscillator
+        self._attenuators.append(Attenuator(sample_rate=self._sample_rate, envelope=envelope))
         return len(self._oscillators) - 1
 
     def __iter__(self):
@@ -194,7 +194,7 @@ class Mixer():
         # Build a list of oscillators outputs attenuated by amplifiers
         v = []
         for i in range(len(self._oscillators)):
-            a = next(self._amplifiers[i])
+            a = next(self._attenuators[i])
             o = next(self._oscillators[i])
             # print("a:", a, "o", o)
             v.append(self._volume * a * o)
@@ -202,20 +202,20 @@ class Mixer():
         # Sum the outputs and divide by nr. of oscillators
         return int(sum(v) / len(self._oscillators))
 
-o_sq50_1 = Oscillator(wave_data = WaveData.square_50, freq=220)
-o_sq50_2 = Oscillator(wave_data = WaveData.square_50, freq=210)
+#o_sq50_1 = Oscillator(wave_data = WaveData.square_50, freq=220)
+#o_sq50_2 = Oscillator(wave_data = WaveData.square_50, freq=210)
 
 o_saw = Oscillator(wave_data = WaveData.saw_up, freq=220)
-o_tri = Oscillator(wave_data = WaveData.triangle, freq=110)
-o_noise = Oscillator(wave_data = WaveData.noise, freq=110)
+o_tri = Oscillator(wave_data = WaveData.triangle, freq=220)
+#o_noise = Oscillator(wave_data = WaveData.noise, freq=110)
 
 
 m = Mixer()
 #m.add_oscillator(o_sq50_1)
 #m.add_oscillator(o_sq50_2)
 
-#m.add_oscillator(o_noise)
-m.add_oscillator(o_tri)
+m.add_oscillator(o_saw, Envelope.ramp_down)
+m.add_oscillator(o_tri, Envelope.ramp_up)
 
 wave_file = wave.open('test.wav', "wb")
 wave_file.setnchannels(1) # Mono
@@ -223,7 +223,7 @@ wave_file.setframerate(m.sample_rate)
 wave_file.setsampwidth(2)
 
 # Get samples from mixer. Write to file.
-for i in range(1 * m.sample_rate):
+for i in range(3 * m.sample_rate):
     #print([ next(o) for i in range(64)])
     v = 100 * (next(m))
     #print(v)
