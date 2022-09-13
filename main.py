@@ -57,7 +57,6 @@ class ClockedData():
 
     @freq.setter
     def freq(self, v):
-        print("Freq set:", v)
         self._freq = v
         self._update_samples_pr_step()
         
@@ -131,7 +130,6 @@ class Waveform(ClockedData):
     """
     def _update_samples_pr_step(self):
         self._samples_pr_step: float = self._sample_rate / (len(self._data) * self._freq)
-        print("Update sample:", self._freq)
 
 class Length(ClockedData):
     """
@@ -166,7 +164,7 @@ class Channel():
 
         # The envelope attenuating the output
         self._envelope = Envelope(
-            data = [],
+            data = 16 * [-1],
             sample_rate=sample_rate,
             freq=64
             )
@@ -180,7 +178,7 @@ class Channel():
 
         self._length = Length(
             sample_rate=sample_rate,
-            data = [ n for n in range(256//4) ],
+            data = [ n for n in range(256) ],
             freq = 256
         )
     @property
@@ -193,7 +191,6 @@ class Channel():
 
     @freq.setter
     def freq(self, v):
-        print("New freq", v)
         self._waveform.freq = v
 
     def trig(self) -> None:
@@ -334,20 +331,24 @@ class Chip():
 
 
 tetris_theme = [
-    Note.A,
-    Note.E,
-    Note.B,
-    Note.C,
-    Note.D,
-    Note.C,
-    Note.B,
-    Note.A,
-    Note.A,
-    Note.C,
-    Note.E,
-    Note.D,
-    Note.C,
-    Note.B
+    #(Note.A, 1.0),
+    (Note.E, 1.0),
+    (Note.B, 0.5),
+    (Note.C, 0.5),
+
+    (Note.D, 1.0),
+    (Note.C, 0.5),
+    (Note.B, 0.5),
+
+    (Note.A, 1.0),
+    (Note.A, 0.5),
+    (Note.C, 0.5),
+
+    (Note.E, 1.0),
+    (Note.D, 0.5),
+    (Note.C, 0.5),
+     
+    (Note.B, 2.0),
 ]
 
 # A programmable sound generator (PSG)
@@ -358,10 +359,10 @@ wave_file.setnchannels(1) # Mono
 wave_file.setframerate(chip.sample_rate)
 wave_file.setsampwidth(2) # Bytes to use for samples
 
-for note in tetris_theme:
+for note, length in tetris_theme:
     chip.set_freg(note.value,0)
     chip.trig(0)
-    for i in range(chip.sample_rate//2):
+    for i in range(int(chip.sample_rate * length * 1/3)):
 
         v = 100 * (next(chip))
         s = struct.pack('<h', int(v))
