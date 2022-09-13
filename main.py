@@ -4,8 +4,6 @@ from enum import Enum, auto
 import wave
 import struct
 
-
-
 @unique
 class Note(Enum):
     A = 220
@@ -15,7 +13,6 @@ class Note(Enum):
     E = 329.63
     F = 349.23
     G = 392.00
-
 
 @unique
 class WaveData(Enum):
@@ -27,130 +24,56 @@ class WaveData(Enum):
     saw_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
     noise = 2 * [0,15,15,0, 15,0,0,15, 15,15,0,0, 15,15,0,15]
 
-@unique
-class EnvelopeData(Enum):
-    """
-    16 step envelopes with values between 0.0 and 1.0 for attenuating oscillator output.
-    """
-    ramp_up = [ v/15 for v in range(0,16) ]
-    ramp_down = list(reversed([ v/15 for v in range(0,16) ]))
-    on = 16 * [1.0]
-    off = 16 * [0.0]
+class Waveform():
 
-class ClockedData():
-    """
-    Looping clocked data
-    """
-
-    def __init__(self, data, sample_rate:int = 44100, freq:int = 64):
-
+    def __init__(self, data, sample_rate:int = 44100, freq:int = 440):
         self._data = data
-        self._sample_rate = sample_rate
-        self._freq = freq
-
-        self._update_samples_pr_step()
         self.reset()
-
-    @property
-    def freq(self):
-        return self._freq
-
-    @freq.setter
-    def freq(self, v):
-        self._freq = v
-        self._update_samples_pr_step()
-        
-    @property
-    def sample_rate(self):
-        return self._sample_rate
-
-    @sample_rate.setter
-    def sample_rate(self, sr):
-        self._sample_rate = sr
-        self._update_samples_pr_step()
-
-    def reset(self):
-        self._pos = 0
-        self._samples_served = 0
-
-    def _update_samples_pr_step(self):
-        self._samples_pr_step: float = self._sample_rate / self._freq
+        self._timer = Timer(sample_rate=sample_rate, freq=len(data) * freq)
     
-    def _tick(self):
-        """
-        Advance time each time a sample has been served.
-        Return True of this tick caused us to advance to the next step.
-        """
-        self._samples_served += 1
-        # Advance to next position in the data
-        if self._samples_served >= self._samples_pr_step:
-            self._samples_served -= self._samples_pr_step
-            return True
-
-        return False
+    def reset(self):
+        self._data_pos = 0
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        # Get the value for the current step of envelope.
-        v = self._data[self._pos]
-
-        if self._tick():
-            self._pos += 1
-
-        # Loop        
-        if self._pos == len(self._data):
-            self._pos = 0
+        v = self._value = self._data[self._data_pos]
+        
+        if next(self._timer):
+            self._data_pos += 1
+            # Loop back
+            if self._data_pos == len(self._data):
+                self._data_pos = 0
 
         return v
 
-class Envelope(ClockedData):
-    """
-    Run through the envelope data.
-    Once the last value has been reached, return that value forever.
-    """
+class Timer():
 
+    def __init__(self, sample_rate=44100, freq=256):
+        self.reset()
+        self._max_value: float = sample_rate / freq
+        
+    def reset(self):
+        self._value = 0
+        self._running = True
+
+    def stop(self):
+        self._running = False
+
+    def __iter__(self):
+        return self
+    
     def __next__(self):
-        # FIXME: I think this will return 0 on the first call. It should return envelope data.
-        try:
-            v = self._data[self._pos]
-        except IndexError:
-            pass
+        if not self._running:
+            v = False
+        elif self._value > self._max_value:
+            self._value -= self._max_value
+            v = True
         else:
-            if self._tick():
-                self._pos += 1
-                return v
-
-        return 0
-
-class Waveform(ClockedData):
-    """
-    A waveform for generating sound (oscillator).
-    """
-    def _update_samples_pr_step(self):
-        self._samples_pr_step: float = self._sample_rate / (len(self._data) * self._freq)
-
-class Length(ClockedData):
-    """
-    A timer for setting enabling and disabling a channel.
-    """
-
-    @property
-    def status(self) -> bool:
-        try:
-            self._data[self._pos]
-        except IndexError:
-            return False
-        else:
-            return True
-
-    def __next__(self) -> bool:
-        # False if we reached the end of the data, True otherwise.
-        v = self.status
-
-        if self._tick():
-            self._pos += 1
+            v = False
+        
+        self._value += 1
 
         return v
 
@@ -161,13 +84,18 @@ class Channel():
         self._base_volume = volume
         self._sample_rate = sample_rate
         self._enabled = enabled
+        self._envelope_add = False
+        self._freq = freq
 
-        # The envelope attenuating the output
-        self._envelope = Envelope(
-            data = 16 * [-1],
-            sample_rate=sample_rate,
-            freq=64
-            )
+        self._envelope_timer = Timer(sample_rate=sample_rate, freq=64)
+        self._sweep_timer = Timer(sample_rate=sample_rate, freq=128)
+        
+
+        # If enabled, the counter will disable the channel when the counter reaches 0
+        self._length_value = 64
+        self._length_enabled = False
+        self._lengt_counter = self._length_value
+        self._length_timer = Timer(sample_rate=sample_rate, freq=256)
 
         # The waveform to play (oscillator)
         self._waveform = Waveform(
@@ -176,11 +104,6 @@ class Channel():
             freq=freq
             )
 
-        self._length = Length(
-            sample_rate=sample_rate,
-            data = [ n for n in range(256) ],
-            freq = 256
-        )
     @property
     def sample_rate(self):
         return self._sample_rate
@@ -198,13 +121,15 @@ class Channel():
         self._enabled = True
         
         # Reset length timer if it has reached end
-        if not self._length.status:
-            self._length.reset()
+        if self._lengt_counter == 0:
+            self._length_timer.reset()
+            self._lengt_counter = self._length_value
 
         # Wave channel's position is set to 0 but sample buffer is NOT refilled.
         self._waveform.reset()
 
-        self._envelope.reset()
+        # Reset envelope timer
+        self._envelope_timer.reset()
 
         # Channel volume is reloaded from NRx2.
         self._current_volume = self._base_volume
@@ -213,26 +138,36 @@ class Channel():
         # Square 1's sweep does several things (see frequency sweep).
 
     def set_waveform(wf: WaveData):
-        pass
+        raise NotImplemented
+
+    def set_length(self, length):
+        self._length_value = length
 
     def __iter__(self):
         return self
     
     def __next__(self) -> float:
-        self._enabled = next(self._length)
-
-        # Modify volume by envelope
-        self._current_volume += next(self._envelope)
-        # Clamp value to range 0-15
-        self._current_volume = min(15, max(0, self._current_volume))
-
-        #self.volume = next(self._envelope)
         
+        if self._length_enabled and next(self._length_timer):
+            self._lengt_counter -= 1
+            if self._lengt_counter == 0:
+                self._enabled = False
+                self._length_timer.stop()
+
+        # If the envelope timer overflowed
+        if next(self._envelope_timer):
+            # Calculate new volume
+            nv = self._current_volume + (1 if self._envelope_add else -1)
+            # If new volume is valid, use it. If not, stop timer
+            if 0 <= nv <= 15:
+                self._current_volume = nv
+            else:
+                self._envelope_timer.stop()
+
         w = next(self._waveform)
 
         if self._enabled:
             return self._current_volume * w
-            #return (self.volume * e * w) / 2
         
         return 0.0
 
@@ -285,9 +220,9 @@ class Chip():
     """
     def __init__(self, sample_rate=44100):
         self._channels = [
-            SquareChannel(sample_rate=sample_rate, freq=440),
+            #SquareChannel(sample_rate=sample_rate, freq=440),
             Channel(sample_rate=sample_rate, freq=220),
-            Channel(sample_rate=sample_rate, freq=110),
+            #Channel(sample_rate=sample_rate, freq=110),
         ]
         self._sample_rate = sample_rate
     
@@ -359,13 +294,20 @@ wave_file.setnchannels(1) # Mono
 wave_file.setframerate(chip.sample_rate)
 wave_file.setsampwidth(2) # Bytes to use for samples
 
-for note, length in tetris_theme:
-    chip.set_freg(note.value,0)
-    chip.trig(0)
-    for i in range(int(chip.sample_rate * length * 1/3)):
+for i in range(chip.sample_rate):
+    v = 100 * (next(chip))
+    s = struct.pack('<h', int(v))
+    wave_file.writeframesraw(s)
 
+"""
+for note, length in tetris_theme:
+    chip.set_freg(note.value, 0)
+    chip.set_freg(note.value/2, 1)
+    chip.set_freg(note.value/4, 2)
+    chip.trig()
+    for i in range(int(chip.sample_rate * length * 1/3)):
         v = 100 * (next(chip))
         s = struct.pack('<h', int(v))
         wave_file.writeframesraw(s)
-
+"""
 wave_file.close()
