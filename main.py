@@ -226,94 +226,6 @@ class Channel():
         
         return 0.0
 
-class Attenuator():
-    """
-    Time based attenuation with 16 (4 bits) steps of values between 0-15 (4 bits)
-    """
-
-    def __init__(self, envelope=EnvelopeData.on, sample_rate = 44100, freq = 64):
-        
-        self._sample_rate = sample_rate
-        self._freq = freq
-
-        self._envelope = envelope.value
-        assert len(self._envelope) == 16
-
-        self._samples_pr_step: float = self._sample_rate / (self._freq)
-
-        self._samples_served = 0
-
-        print("Samples pr step: ",self._samples_pr_step)
-        print("Enevlope: ", self._envelope )
-
-        self.reset()
-
-    @property
-    def sample_rate(self):
-        return self._sample_rate
-
-    def reset(self):
-        self._pos = 0
-        self._samples_served = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        # Get the value for the current step of envelope.
-        # Value is 0 if envelope is over 
-        try:
-            v = self._envelope[self._pos]
-        except IndexError:
-            return self._envelope[-1]
-
-        self._samples_served += 1
-
-        # Advance to next position in the envelope
-        if self._samples_served >= self._samples_pr_step:
-            self._pos += 1
-            self._samples_served -= self._samples_pr_step
-        #print(self._samples_served)
-        #print(self._pos)
-        return v
-
-class Oscillator():
-
-    def __init__(self, wave_data: WaveData = WaveData.square_50, sample_rate=44100, freq=1):
-        self._waveform = Waveform(wave_data)
-        self._sample_rate = sample_rate
-        # The number of values to get from the wave data pr. sample
-        self._samples_pr_wave_value = sample_rate / (freq * len(self._waveform)) 
-        print("samples_pr_wave_value:", self._samples_pr_wave_value)
-
-        assert self._samples_pr_wave_value >= 1.0, f"Sample rate too low. Ratio is: {self._samples_pr_wave_value}"
-        
-        # Current output from oscillator is first value in waveform
-        self._value = next(self._waveform)
-        # Since ratio is not always an int, we need to considet parts of samples
-        self._samples_served: float = 0.0
-
-    @property
-    def sample_rate(self):
-        return self._sample_rate
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        # The value to return
-        v = self._value
-
-        self._samples_served += 1.0
-        if self._samples_served >= self._samples_pr_wave_value:
-            # oscillator now has this output
-            self._value = next(self._waveform)
-            # Reset count towards next time we update the output
-            self._samples_served -= self._samples_pr_wave_value
-
-        # Shift down by 8 becauze we have 16 values in waveforms
-        return v - 7
-
 class SquareChannel(Channel):
     """
     A channel with square waves
@@ -353,59 +265,9 @@ class SquareChannel(Channel):
         # The rest of the entries are off
         no_of_off_entries = 32 - no_of_on_entries
         # Build the wavedata
-        return no_of_off_entries * [0] + no_of_on_entries * [15]
-
-
-class Mixer():
-    """
-    An iterator mixing a number of oscillators.
-    """
-    def __init__(self, sample_rate = 44100):
-        self._oscillators: List[Oscillator] = []
-        self._attenuators: List[Attenuator] = []
-        self._sample_rate = sample_rate
-        self._volume = 10
-
-    @property
-    def no_of_oscillators(self):
-        """
-        How many oscillators in the mixer.
-        """
-        return len(self._oscillators)
-
-    @property
-    def sample_rate(self):
-        return self._sample_rate
-
-    def add_oscillator(self, o: Oscillator, envelope: Optional[EnvelopeData] = EnvelopeData.on) -> int:
-        """
-        Add an oscillator. Return the index of the new oscillator.
-        """
-        # Oscillator must match mixer's sample rate
-        assert o.sample_rate == self._sample_rate
-        self._oscillators.append(o)
-
-        # Add an attenuator for the oscillator
-        self._attenuators.append(Attenuator(sample_rate=self._sample_rate, envelope=envelope))
-        return len(self._oscillators) - 1
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> int:
-        """
-        Sum of all oscillators divided by no of oscillators.
-        """
-        # Build a list of oscillators outputs attenuated by amplifiers
-        v = []
-        for i in range(len(self._oscillators)):
-            a = next(self._attenuators[i])
-            o = next(self._oscillators[i])
-            # print("a:", a, "o", o)
-            v.append(self._volume * a * o)
-
-        # Sum the outputs and divide by nr. of oscillators
-        return int(sum(v) / len(self._oscillators))
+        d = no_of_off_entries * [0] + no_of_on_entries * [15]
+        assert len(d) == 32, "Waveform must have 32 values"
+        return d
 
 class Chip():
     """
@@ -417,6 +279,11 @@ class Chip():
             Channel(sample_rate=sample_rate, freq=220),
             Channel(sample_rate=sample_rate, freq=110),
         ]
+        self._sample_rate = sample_rate
+    
+    @property
+    def sample_rate(self):
+        return self._sample_rate
     
     def trig(self, channel: Optional[int] = None):
         """
@@ -451,40 +318,22 @@ class Chip():
 
     def __next__(self):
         return sum([ next(c) for c in self._channels]) / len(self._channels)
-    
 
 
-
-m = Mixer()
-
-#m.add_oscillator(o_saw, EnvelopeData.ramp_down)
-#m.add_oscillator(o_tri, EnvelopeData.ramp_up)
-
-#m = Channel()
-
+# A programmable sound generator (PSG)
 chip = Chip()
+
 wave_file = wave.open('test.wav', "wb")
 wave_file.setnchannels(1) # Mono
-wave_file.setframerate(m.sample_rate)
+wave_file.setframerate(chip.sample_rate)
 wave_file.setsampwidth(2) # Bytes to use for samples
 
 for f in [110, 220, 440, 880]:
-    for i in range(m.sample_rate//2):
+    for i in range(chip.sample_rate//2):
         v = 100 * (next(chip))
         s = struct.pack('<h', int(v))
         wave_file.writeframesraw(s)
     chip.set_freg(f,0)
     chip.trig(0)
-
-# Get samples from mixer. Write to file.
-"""
-for f in [110, 220, 440, 880]:
-    m.freq = f
-    m.trig()
-    for i in range(1 * m.sample_rate):
-        v = 100 * (next(m))
-        s = struct.pack('<h', int(v))
-        wave_file.writeframesraw(s)
-"""
 
 wave_file.close()
