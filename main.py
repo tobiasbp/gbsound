@@ -73,7 +73,8 @@ class ClockedData():
     
     def _tick(self):
         """
-        Advance time each time a sample has been served
+        Advance time each time a sample has been served.
+        Return True of this tick caused us to advance to the next step.
         """
         self._samples_served += 1
         # Advance to next position in the data
@@ -137,15 +138,17 @@ class Envelope(ClockedData):
     """
 
     def __next__(self):
+        # FIXME: I think this will return 0 on the first call. It should return envelope data.
         try:
             v = self._data[self._pos]
         except IndexError:
-            v = self._data[-1]
+            pass
         else:
             if self._tick():
                 self._pos += 1
+                return v
 
-        return v
+        return 0
 
 class WaveformNew(ClockedData):
     """
@@ -181,14 +184,16 @@ class Length(ClockedData):
 class Channel():
 
     def __init__(self, sample_rate:int=44100, freq:int=440, volume:int=15 , enabled:bool=True):
-        self.volume = volume
+        self._current_volume = volume
+        self._base_volume = volume
         self._sample_rate = sample_rate
         self._enabled = enabled
 
         # The envelope attenuating the output
         self._envelope = Envelope(
             #data=EnvelopeData.on.value,
-            data = [ n for n in range(16 )],
+            #data = [ n for n in range(16 )],
+            data = [ -1 for i in range(2**4)],
             sample_rate=sample_rate,
             freq=64
             )
@@ -222,10 +227,19 @@ class Channel():
         # Enable the channel
         self._enabled = True
         
-        # Reset length of is done
+        # Reset length timer if it has reached end
         if not self._length.status:
             self._length.reset()
 
+        self._waveform.reset()
+        self._envelope.reset()
+
+        # Channel volume is reloaded from NRx2.
+        self._current_volume = self._base_volume
+
+        # Noise channel's LFSR bits are all set to 1.
+        # Wave channel's position is set to 0 but sample buffer is NOT refilled.
+        # Square 1's sweep does several things (see frequency sweep).
 
     def set_waveform(wf: WaveData):
         pass
@@ -236,12 +250,17 @@ class Channel():
     def __next__(self) -> float:
         self._enabled = next(self._length)
 
-        #e = next(self._envelope)
-        self.volume = next(self._envelope)
+        # Modify volume by envelope
+        self._current_volume += next(self._envelope)
+        # Clamp value to range 0-15
+        self._current_volume = min(15, max(0, self._current_volume))
+
+        #self.volume = next(self._envelope)
+        
         w = next(self._waveform)
 
         if self._enabled:
-            return self.volume * w
+            return self._current_volume * w
             #return (self.volume * e * w) / 2
         
         return 0.0
