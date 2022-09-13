@@ -161,7 +161,7 @@ class Channel():
         # The waveform to play (oscillator)
         self._waveform = Waveform(
             data=WaveData.triangle.value,
-            sample_rate=44100,
+            sample_rate=sample_rate,
             freq=freq
             )
 
@@ -314,6 +314,47 @@ class Oscillator():
         # Shift down by 8 becauze we have 16 values in waveforms
         return v - 7
 
+class SquareChannel(Channel):
+    """
+    A channel with square waves
+    """
+
+    def __init__(self, sample_rate:int=44100, freq:int=440, volume:int=15 , enabled:bool=True, duty_cycle: float = 0.5):
+
+        super().__init__(sample_rate=sample_rate, freq=freq, volume=volume , enabled=enabled)
+
+        # Reconfigure the waveform
+        self.set_duty_cycle(duty_cycle)
+
+    @property
+    def duty_cycle(self) -> float:
+        """
+        Return the current duty cycle
+        """
+        return self._duty_cycle
+
+    def set_duty_cycle(self, ds):
+        """
+        Replace waveform with a square with a duty cycle of ds
+        """
+        self._duty_cycle = ds
+        self._waveform=Waveform(
+            data=self._build_square_wave(ds) ,
+            sample_rate=self._sample_rate,
+            freq=self.freq
+            )
+
+    def _build_square_wave(self, ds: float) -> List[int]:
+        """
+        Build a square wave from a duty cycle
+        """
+        # One or more ON entries in waveform
+        no_of_on_entries = max(1, int(self._duty_cycle * 32))
+        # The rest of the entries are off
+        no_of_off_entries = 32 - no_of_on_entries
+        # Build the wavedata
+        return no_of_off_entries * [0] + no_of_on_entries * [15]
+
 
 class Mixer():
     """
@@ -372,7 +413,7 @@ class Chip():
     """
     def __init__(self, sample_rate=44100):
         self._channels = [
-            Channel(sample_rate=sample_rate, freq=440),
+            SquareChannel(sample_rate=sample_rate, freq=440),
             Channel(sample_rate=sample_rate, freq=220),
             Channel(sample_rate=sample_rate, freq=110),
         ]
@@ -410,6 +451,8 @@ class Chip():
 
     def __next__(self):
         return sum([ next(c) for c in self._channels]) / len(self._channels)
+    
+
 
 
 m = Mixer()
