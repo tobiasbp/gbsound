@@ -191,16 +191,14 @@ class Channel():
 
         # The envelope attenuating the output
         self._envelope = Envelope(
-            #data=EnvelopeData.on.value,
-            #data = [ n for n in range(16 )],
-            data = [ -1 for i in range(2**4)],
+            data = [],
             sample_rate=sample_rate,
             freq=64
             )
 
         # The waveform to play (oscillator)
         self._waveform = WaveformNew(
-            data=WaveData.square_50.value,
+            data=WaveData.triangle.value,
             sample_rate=44100,
             freq=freq
             )
@@ -231,14 +229,15 @@ class Channel():
         if not self._length.status:
             self._length.reset()
 
+        # Wave channel's position is set to 0 but sample buffer is NOT refilled.
         self._waveform.reset()
+
         self._envelope.reset()
 
         # Channel volume is reloaded from NRx2.
         self._current_volume = self._base_volume
 
         # Noise channel's LFSR bits are all set to 1.
-        # Wave channel's position is set to 0 but sample buffer is NOT refilled.
         # Square 1's sweep does several things (see frequency sweep).
 
     def set_waveform(wf: WaveData):
@@ -405,9 +404,50 @@ class Mixer():
         # Sum the outputs and divide by nr. of oscillators
         return int(sum(v) / len(self._oscillators))
 
+class Chip():
+    """
+    A programmable sound generator
+    """
+    def __init__(self, sample_rate=44100):
+        self._channels = [
+            Channel(sample_rate=sample_rate, freq=440),
+            Channel(sample_rate=sample_rate, freq=220),
+            Channel(sample_rate=sample_rate, freq=110),
+        ]
+    
+    def trig(self, channel: Optional[int] = None):
+        """
+        Trig one or all channels
+        """
+        if channel:
+            self._channels[channel].trig()
+        else:
+            for c in self._channels:
+                c.trig()
 
-#o_saw = Oscillator(wave_data = WaveData.saw_up, freq=220)
-#o_tri = Oscillator(wave_data = WaveData.triangle, freq=220)
+    def set_freg(self, freq: int, channel: Optional[int] = None):
+        """
+        Set the frequency for one or all channels
+        """
+        if channel:
+            self._channels[channel].freq = freq
+        else:
+            for c in self._channels:
+                c.freq = freq
+
+        def set_fregs(self, freqs: List[int]):
+            """
+            Set the frequency for all channels
+            """
+            assert len(self._channnels) == len(freq)
+            for i in (range(len(freqs))):
+                    self._channels[i].freq  = freqs[i]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return sum([ next(c) for c in self._channels]) / len(self._channels)
 
 
 m = Mixer()
@@ -415,22 +455,31 @@ m = Mixer()
 #m.add_oscillator(o_saw, EnvelopeData.ramp_down)
 #m.add_oscillator(o_tri, EnvelopeData.ramp_up)
 
-m = Channel()
+#m = Channel()
 
+chip = Chip()
 wave_file = wave.open('test.wav', "wb")
 wave_file.setnchannels(1) # Mono
 wave_file.setframerate(m.sample_rate)
 wave_file.setsampwidth(2) # Bytes to use for samples
 
+for f in [110, 220, 440, 880]:
+    for i in range(m.sample_rate//2):
+        v = 100 * (next(chip))
+        s = struct.pack('<h', int(v))
+        wave_file.writeframesraw(s)
+    chip.set_freg(f,0)
+    chip.trig(0)
+
 # Get samples from mixer. Write to file.
+"""
 for f in [110, 220, 440, 880]:
     m.freq = f
     m.trig()
     for i in range(1 * m.sample_rate):
-        #print([ next(o) for i in range(64)])
         v = 100 * (next(m))
-        #print(v)
         s = struct.pack('<h', int(v))
         wave_file.writeframesraw(s)
+"""
 
 wave_file.close()
