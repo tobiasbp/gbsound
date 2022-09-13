@@ -15,13 +15,6 @@ class WaveData(Enum):
     noise = 2 * [0,15,15,0, 15,0,0,15, 15,15,0,0, 15,15,0,15]
 
 @unique
-class EnvelopeDataFoo(Enum):
-    """
-    Envelopes to shape the output of an oscillator. 
-    """
-    ramp_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
-
-@unique
 class EnvelopeData(Enum):
     """
     16 step envelopes with values between 0.0 and 1.0 for attenuating oscillator output.
@@ -100,37 +93,6 @@ class ClockedData():
 
         return v
 
-class Waveform():
-    """
-    A waveform iterator of length 32
-    """
-
-    def __init__(self, wave_data: WaveData):
-        self._wave: List[int] = wave_data.value
-        self._pos: int = 0
-        self._length = len(self._wave)
-
-        assert self._length == 32
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> int:
-        """
-        Return the next value in the waveform
-        """
-        v =  self._wave[self._pos]
-        
-        if self._pos == len(self._wave) - 1:
-            self._pos = 0
-        else:
-            self._pos += 1
-        
-        return v
-
-    def __len__(self):
-        return self._length
-
 class Envelope(ClockedData):
     """
     Run through the envelope data.
@@ -150,7 +112,7 @@ class Envelope(ClockedData):
 
         return 0
 
-class WaveformNew(ClockedData):
+class Waveform(ClockedData):
     """
     A waveform for generating sound (oscillator).
     """
@@ -197,7 +159,7 @@ class Channel():
             )
 
         # The waveform to play (oscillator)
-        self._waveform = WaveformNew(
+        self._waveform = Waveform(
             data=WaveData.triangle.value,
             sample_rate=44100,
             freq=freq
