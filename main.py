@@ -4,6 +4,19 @@ from enum import Enum, auto
 import wave
 import struct
 
+
+
+@unique
+class Note(Enum):
+    A = 220
+    B = 246.94
+    C = 261.63
+    D = 293.66
+    E = 329.63
+    F = 349.23
+    G = 392.00
+
+
 @unique
 class WaveData(Enum):
     """
@@ -320,6 +333,23 @@ class Chip():
         return sum([ next(c) for c in self._channels]) / len(self._channels)
 
 
+tetris_theme = [
+    Note.A,
+    Note.E,
+    Note.B,
+    Note.C,
+    Note.D,
+    Note.C,
+    Note.B,
+    Note.A,
+    Note.A,
+    Note.C,
+    Note.E,
+    Note.D,
+    Note.C,
+    Note.B
+]
+
 # A programmable sound generator (PSG)
 chip = Chip()
 
@@ -328,12 +358,13 @@ wave_file.setnchannels(1) # Mono
 wave_file.setframerate(chip.sample_rate)
 wave_file.setsampwidth(2) # Bytes to use for samples
 
-for f in [110, 220, 440, 880]:
+for note in tetris_theme:
+    chip.set_freg(note.value,0)
+    chip.trig(0)
     for i in range(chip.sample_rate//2):
+
         v = 100 * (next(chip))
         s = struct.pack('<h', int(v))
         wave_file.writeframesraw(s)
-    chip.set_freg(f,0)
-    chip.trig(0)
 
 wave_file.close()
