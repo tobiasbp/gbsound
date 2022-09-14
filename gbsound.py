@@ -231,6 +231,9 @@ class Channel():
             self._build_square_wave(duty_cycle, len(self._waveform._data))
         )
 
+    def set_envelope_add(self, envelope_add):
+        self._envelope_add = envelope_add
+
     def set_length(self, length):
         self._length_value = length
 
@@ -333,6 +336,9 @@ class Chip():
                 c.sweep_up(sweep_up)
         else:
             self._channels[channel].sweep_up(sweep_up)
+
+    def envelope_add(self, envelope_add: bool, channel:int):
+        self._channels[channel].set_envelope_add(envelope_add)
 
     def set_freg(self, freq: int, channel: Optional[int] = None):
         """
