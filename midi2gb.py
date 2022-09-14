@@ -1,6 +1,11 @@
 from MIDI import MIDIFile, Events
 from sys import argv
 
+from gbsound import Note, Chip
+import wave
+import struct
+import random
+
 # MIT License
 # Python to convert a string note (eg. "A4") to a frequency (eg. 440).
 # Inspired by https://gist.github.com/stuartmemo/3766449
@@ -20,7 +25,18 @@ def get_frequency(note, A4=440):
 
     return A4 * 2** ((keyNumber- 49) / 12)
 
+# A programmable sound generator (PSG)
+chip = Chip()
+
+
+
+
 def parse(file):
+
+    wave_file = wave.open('sounds/midi2gb.wav', "wb")
+    wave_file.setnchannels(1) # Mono
+    wave_file.setframerate(chip.sample_rate)
+    wave_file.setsampwidth(2) # Bytes to use for samples
     
     c=MIDIFile(file)
     c.parse()
@@ -40,39 +56,33 @@ def parse(file):
                 pass
             else:
                 if e.message.onOff == "ON":
+                    f = get_frequency(str(e.message.note))
                     print("Event:",e)
-                    print("Time:", e.time)
-                    print("onOff:", e.message.onOff)
-                    print("Note", e.message.note)
-                    print("Frequency", get_frequency(str(e.message.note)))
-                    print("channel:", e.channel)
+                    #print("Time:", e.time)
+                    #print("onOff:", e.message.onOff)
+                    #print("Note", e.message.note)
+                    #print("Frequency", f)
+                    #print("channel:", e.channel)
 
-            #if onOff in dict(e.message):
-            #    print("foo")
-            #    pass 
-            #if e.command == 144:
-            #    print("FOO")
-            """
-            try:
-                print("onOff:", e.message.onOff)
-                print("note:", e.message.note)
-                print("command:", e.command)
-            except:
-                pass
+                    chip.set_freg(f, 0)
+                    chip.set_freg(f/2, 1)
+                    chip.set_freg(f/4, 2)
+                    #chip.sweep_up(bool(random.randint(0,2)))
+                    #chip.envelop(True)
+                    chip.trig()
+                    #chip.set_freg(note.value/2, 1)
+                    #chip.set_freg(note.value/4, 2)
+                    for i in range(int(chip.sample_rate / 6)):
+                        v = 100 * (next(chip))
+                        s = struct.pack('<h', int(v))
+                        wave_file.writeframesraw(s)
 
-            if type(e) == Events.midi.MIDIEvent:
-                print("onOff:", e.message.onOff)
-                print("note:", e.message.note)
-                print("command:", e.command)
 
-            """
-            #    print("event_command:", e.command)
-            #    print("event_channel:", e.channel)
-            #    #print("event_attributes:", dir(e))
-            #    #break
-            #    pass
+    wave_file.close()
+
+
  
-tetris = "midi/tetris_theme_a.mid"
+tetris = "midi/tetris_2.mid"
 
 parse(tetris)
 
