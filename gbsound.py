@@ -108,7 +108,11 @@ class Noise():
     def __init__(self):
         self.enabled = False
         self.volume = 15
+
     def trig(self):
+        pass
+
+    def sweep_up(self, sweep_up):
         pass
 
     def __iter__(self):
@@ -119,7 +123,6 @@ class Noise():
             return 0
 
         return self.volume * randint(0,16)
-
 
 class Channel():
 
