@@ -80,7 +80,6 @@ class Waveform():
         self._data_pos = 0
     
     def set_freq(self, freq: int):
-        print("freq in wf:", freq)
         self._freq = freq
         self.reset()
     
