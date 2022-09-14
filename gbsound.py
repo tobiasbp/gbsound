@@ -126,12 +126,16 @@ class Noise():
 
 class Channel():
 
-    def __init__(self, data=[], sample_rate:int=44100, freq:int=440, volume:int=15 , enabled:bool=True):
-        self._current_volume = volume
-        self._base_volume = volume
+    def __init__(self, data=[], sample_rate:int=44100):
+        # The volume to return to when triggered
+        self._base_volume = 15
+        # The volume in use
+        self._current_volume = self._base_volume
         self._sample_rate = sample_rate
-        self._enabled = enabled
-        self._freq = freq
+        self._freq = 440
+
+        # Not playing
+        self._enabled = False
 
         self._envelope_add = False
         self._envelope_timer = Timer(sample_rate=sample_rate, freq=64)
@@ -152,7 +156,7 @@ class Channel():
             data=data if any(data) else self._build_square_wave(duty_cycle=0.5, length=32),
             #data=WaveData.triangle.value,
             sample_rate=sample_rate,
-            freq=freq
+            freq=self._freq
             )
 
     @property
@@ -269,7 +273,8 @@ class Channel():
         w = next(self._waveform)
 
         if self._enabled:
-            return self._current_volume * w
+            # Values between -1.0 and 1.0 multiplied by volume
+            return self._current_volume * (((w/15) * 2) - 1)
         
         return 0.0
 
@@ -279,9 +284,9 @@ class Chip():
     """
     def __init__(self, sample_rate=44100):
         self._channels = [
-            Channel(sample_rate=sample_rate, freq=440), # Square
-            Channel(sample_rate=sample_rate, freq=220), # Square
-            Channel(sample_rate=sample_rate, freq=110), # Wave
+            Channel(sample_rate=sample_rate), # Square
+            Channel(sample_rate=sample_rate), # Square
+            Channel(sample_rate=sample_rate), # Wave
             Noise(), # Noise
 
         ]
@@ -291,6 +296,8 @@ class Chip():
         self._channels[2].set_waveform(WaveData.triangle.value)
 
         self._sample_rate = sample_rate
+
+        self.volume = 400
         
 
     @property
@@ -301,41 +308,41 @@ class Chip():
         """
         Trig one or all channels
         """
-        if channel:
-            self._channels[channel].trig()
-        else:
+        if channel is None:
             for c in self._channels:
                 c.trig()
+        else:
+            self._channels[channel].trig()
 
     def sweep_enable(self, enable: bool, channel: Optional[int] = None):
         """
         Enable/disable sweep for one or all channels
         """
-        if channel:
-            self._channels[channel].sweep_enable(enable)
-        else:
+        if channel is None:
             for c in self._channels:
                 c.sweep_enable(enable)
+        else:
+            self._channels[channel].sweep_enable(enable)
 
     def sweep_up(self, sweep_up: bool, channel: Optional[int] = None):
         """
         Set sweep direction for one or all channels
         """
-        if channel:
-            self._channels[channel].sweep_up(sweep_up)
-        else:
+        if channel is None:
             for c in self._channels:
                 c.sweep_up(sweep_up)
+        else:
+            self._channels[channel].sweep_up(sweep_up)
 
     def set_freg(self, freq: int, channel: Optional[int] = None):
         """
         Set one frequency for one or all channels
         """
-        if channel:
-            self._channels[channel].freq = freq
-        else:
+        if channel is None:
             for c in self._channels:
                 c.freq = freq
+        else:
+            self._channels[channel].freq = freq
 
     def set_fregs(self, freqs: List[int]):
         """
@@ -349,4 +356,19 @@ class Chip():
         return self
 
     def __next__(self):
-        return sum([ next(c) for c in self._channels]) / len(self._channels)
+        #v = [v for v in [ next(c) for c in self._channels] if v != 0] 
+        
+        #try:
+        #    return self.volume * (sum(v) / len(v))
+        #except ZeroDivisionError:
+        #    return 0
+        #for n, c in enumerate(self._channels):
+        #    print(f"Channel {n}: {next(c)}")
+        #c_0 = next(self._channels[0])
+        #c_1 = next(self._channels[1])
+        #c_2 = next(self._channels[2])
+        
+        
+
+        #return self.volume * next(self._channels[0])
+        return self.volume * sum([ next(c) for c in self._channels]) / len(self._channels)
