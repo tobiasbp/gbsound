@@ -1,7 +1,8 @@
 from enum import unique
-from random import sample
+#from random import sample
 from typing import List, Optional
-from enum import Enum, auto
+from enum import Enum
+from random import randint
 import wave
 import struct
 
@@ -104,6 +105,24 @@ class Waveform():
                 self._data_pos = 0
 
         return v
+
+class Noise():
+
+    def __init__(self):
+        self.enabled = False
+        self.volume = 15
+    def trig(self):
+        pass
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if not self.enabled:
+            return 0
+
+        return self.volume * randint(0,16)
+
 
 class Channel():
 
@@ -260,9 +279,11 @@ class Chip():
     """
     def __init__(self, sample_rate=44100):
         self._channels = [
-            Channel(sample_rate=sample_rate, freq=440),
-            Channel(sample_rate=sample_rate, freq=220),
-            Channel(sample_rate=sample_rate, freq=110),
+            Channel(sample_rate=sample_rate, freq=440), # Square
+            Channel(sample_rate=sample_rate, freq=220), # Square
+            Channel(sample_rate=sample_rate, freq=110), # Wave
+            Noise(), # Noise
+
         ]
         # Set waveforms for channels
         self._channels[0].set_duty_cycle(0.5)
