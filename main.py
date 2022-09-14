@@ -21,7 +21,7 @@ class WaveData(Enum):
     Raw wave data with 32 values between 0 and 15 (4 bits).
     """
     square_50 = 16 * [0] + 16 * [15]
-    triangle = [ i for i in range(16)] + [ i for i in range(15,-1,-1)]
+    triangle = [ i for i in range(16)] + list(reversed([ i for i in range(16)]))
     saw_up = [0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15]
     noise = 2 * [0,15,15,0, 15,0,0,15, 15,15,0,0, 15,15,0,15]
 
@@ -75,6 +75,10 @@ class Waveform():
 
         self.reset()
     
+    @property
+    def freq(self):
+        return self._freq
+
     def reset(self):
         self._timer = Timer(sample_rate=self._sample_rate, freq=len(self._data) * self._freq)
         self._data_pos = 0
@@ -113,7 +117,10 @@ class Channel():
         self._envelope_add = False
         self._envelope_timer = Timer(sample_rate=sample_rate, freq=64)
 
-        self._sweep_timer = Timer(sample_rate=sample_rate, freq=128)
+        # Timer based manipulation of waveform frequency
+        self._sweep_up = True
+        self._sweep_enabled = False
+        self._sweep_timer = Timer(sample_rate=sample_rate, freq=32)
 
         # If enabled, the counter will disable the channel when the counter reaches 0
         self._length_value = 64
@@ -160,6 +167,8 @@ class Channel():
         # Reset envelope timer
         self._envelope_timer.reset()
 
+        self._sweep_timer.reset()
+
         # Channel volume is reloaded from NRx2.
         self._current_volume = self._base_volume
 
@@ -178,6 +187,12 @@ class Channel():
         d = no_of_off_entries * [0] + no_of_on_entries * [15]
         assert len(d) == length, f"Waveform must have {length} values"
         return d
+
+    def sweep_enable(self, enable: bool):
+        self._sweep_enabled = enable
+
+    def sweep_up(self, sweep_up: bool):
+        self._sweep_up = sweep_up
 
     def set_waveform(self, data: List[int]):
         """
@@ -200,14 +215,29 @@ class Channel():
         return self
 
     def __next__(self) -> float:
-        
+
+        # Sweep timer
+        if self._sweep_enabled and self._sweep_timer.tick():
+
+            # Original frequency
+            f_o = self._waveform._freq
+
+            # Double or half frequency depending of direction of sweep
+            if self._sweep_up:
+                f_n = f_o * 2
+            else:
+                f_n = max(1, f_o * 0.5)
+
+            self._waveform.set_freq(f_n)
+
+        # Length timer
         if self._length_enabled and self._length_timer.tick():
             self._lengt_counter -= 1
             if self._lengt_counter == 0:
                 self._enabled = False
                 self._length_timer.stop()
 
-        # If the envelope timer overflowed
+        # Envelope timer
         if self._envelope_timer.tick():
             # Calculate new volume
             nv = self._current_volume + (1 if self._envelope_add else -1)
@@ -255,6 +285,26 @@ class Chip():
         else:
             for c in self._channels:
                 c.trig()
+
+    def sweep_enable(self, enable: bool, channel: Optional[int] = None):
+        """
+        Enable/disable sweep for one or all channels
+        """
+        if channel:
+            self._channels[channel].sweep_enable(enable)
+        else:
+            for c in self._channels:
+                c.sweep_enable(enable)
+
+    def sweep_up(self, sweep_up: bool, channel: Optional[int] = None):
+        """
+        Set sweep direction for one or all channels
+        """
+        if channel:
+            self._channels[channel].sweep_up(sweep_up)
+        else:
+            for c in self._channels:
+                c.sweep_up(sweep_up)
 
     def set_freg(self, freq: int, channel: Optional[int] = None):
         """
@@ -316,7 +366,6 @@ for i in range(chip.sample_rate):
     s = struct.pack('<h', int(v))
     wave_file.writeframesraw(s)
 """
-
 
 for note, length in tetris_theme:
     chip.set_freg(note.value, 0)
