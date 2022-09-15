@@ -26,13 +26,8 @@ def get_frequency(note, A4=440):
 
     return A4 * 2** ((keyNumber- 49) / 12)
 
-# A programmable sound generator (PSG)
-chip = Chip()
 
-
-
-
-def parse(file_midi, file_wav, bpm = 120, transpose = 1.0):
+def parse(file_midi, file_wav, bpm = 120, transpose = 1.0, chip=Chip()):
     """
     Higher number for speed , is slower tempo.
     """
@@ -71,11 +66,13 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0):
     event_no = 0
     no_of_channels = 3
 
-    for idx, track in enumerate(c):
-        #print(f'Track {idx}:')
-        #print(type(track))
+    for track_no, track in enumerate(c):
+        print(f'Track {track_no}:')
+        print(str(track))
         
         track.parse()
+
+        
         #    pass
         for e in track:
 
@@ -93,7 +90,8 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0):
                     prev_event_time = this_event_time
                     #print("Event:",e)
                     #print("Tempo:",e.tempo)
-                    #print("Time:", e.time)
+                    print("Track:", track_no)
+                    print("Time:", e.time)
                     #print("onOff:", e.message.onOff)
                     #print("Note", e.message.note)
                     #print("Frequency", f)
@@ -131,7 +129,11 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0):
 #parse("./midi/tetris_remix.mid", "./sounds/tetris_remix.wav", bpm = 60)
 #parse("./midi/daisy-s-theme.mid", "./sounds/daisy-s-theme.wav", bpm = 60, transpose=0.5)
 #parse("./midi/megaman-end.mid", "./sounds/megaman-end.wav", bpm = 60, transpose=0.5)
-parse("./midi/SMB3_hammer.mid", "./sounds/SMB3_hammer.wav", bpm = 120, transpose=1.0)
+
+c = Chip()
+c.set_envelope_period(2)
+c.sweep_enable()
+parse("./midi/SMB3_hammer.mid", "./sounds/SMB3_hammer.wav", bpm = 120, transpose=1.0, chip=c)
 
 #for f in Path("./midi").glob("*.mid"):
 #    file_midi = f
