@@ -42,8 +42,8 @@ for i in range(100):
 The following material has been used for research:  
 
 * https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware
-* https://www.youtube.com/watch?v=a52p6ji1WZs
-* https://www.youtube.com/watch?v=LCPLGkYJk5M
+* [Manuel Fuchs Emulating the Nintendo Game Boy Audio Hardware in Elm](https://www.youtube.com/watch?v=a52p6ji1WZs)
+* [GBZ80 Assembly Lesson P21 - Sound on the Gameboy and Gameboy Color](https://www.youtube.com/watch?v=LCPLGkYJk5M)
 * https://aselker.github.io/gameboy-sound-chip/
 * http://www.devrs.com/gb/files/hosted/GBSOUND.txt
 
