@@ -405,7 +405,7 @@ class Chip:
     def envelope_add(self, envelope_add: bool, channel: int):
         self._channels[channel].set_envelope_add(envelope_add)
 
-    def set_freg(self, freq: int, channel: Optional[int] = None):
+    def set_freq(self, freq: int, channel: Optional[int] = None):
         """
         Set one frequency for one or all channels
         """
@@ -414,14 +414,6 @@ class Chip:
                 c.freq = freq
         else:
             self._channels[channel].freq = freq
-
-    def set_fregs(self, freqs: List[int]):
-        """
-        Set the frequency for all channels
-        """
-        assert len(self._channnels) == len(freqs)
-        for i in range(len(freqs)):
-            self._channels[i].freq = freqs[i]
 
     def __iter__(self):
         return self

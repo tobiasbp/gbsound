@@ -113,14 +113,12 @@ def parse(file_midi, file_wav, bpm=120, transpose=1.0, chip=Chip()):
 
                     channel_no = event_no % no_of_channels
                     # print("GB channel:", channel_no)
-                    chip.set_freg(f, channel_no)
+                    chip.set_freq(f, channel_no)
                     # chip.sweep_enable(bool(random.randint(0,2)), channel_no)
                     # chip.envelope_add(bool(random.randint(0,2)), channel_no)
 
-                    chip.set_freg(f / 2, channel_no + 1)
-                    # chip.set_freg(f/4, 2)
+                    chip.set_freq(f / 2, channel_no + 1)
                     chip.trig(channel_no)
-                    # chip.trig(channel_no + 1)
 
                     event_no += 1
 
@@ -145,7 +143,7 @@ def parse(file_midi, file_wav, bpm=120, transpose=1.0, chip=Chip()):
         chip_channel = i % no_of_channels
         f = get_frequency(str(e_now.message.note))
         # chip.set_freq(, chip_channel)
-        chip.set_freg(int(f * transpose), chip_channel)
+        chip.set_freq(int(f * transpose), chip_channel)
         chip.trig(chip_channel)
         for i in range((e_next.time - e_now.time) * samples_pr_tick):
             v = next(chip)
