@@ -16,11 +16,13 @@ To get sound data from the _Chip_, one has to configure it, and then request a n
 The samples can be saved in a _wav_ file for later playback.
 
 The file _midi2gba.py_ parses [MIDI](https://en.wikipedia.org/wiki/MIDI) files and outputs _wav_ files.
-Listen to the [prerendered audio files](https://github.com/tobiasbp/gbsound/tree/main/sounds).
-The were created by parsing [these MIDI files](https://github.com/tobiasbp/gbsound/tree/main/midi). 
+Listen to the [pre-rendered audio files](https://github.com/tobiasbp/gbsound/tree/main/sounds) that are
+a part of this project.
+They were created by parsing [these MIDI files](https://github.com/tobiasbp/gbsound/tree/main/midi).
 
 ## Example of use
 ```python
+from gbsound import Chip
 
 # The sound chip
 chip = Chip()
@@ -49,5 +51,5 @@ Based on the description [here]().
 
 ## Misc
 * _gbsound.py_ needs Python 3.8 or newer.
-* The library used for parsing MIDI files is here: https://pypi.org/project/MIDIFile/
+* The library used for parsing MIDI files in _midi2gba.py_ is here: https://pypi.org/project/MIDIFile/
 * Source of the MIDI files used: https://www.khinsider.com/midi/gameboy/tetris
