@@ -287,6 +287,11 @@ class Channel:
 
     def set_envelope_add(self, envelope_add):
         self._envelope_add = envelope_add
+        if envelope_add:
+            # If volume is to rise, it needs to rise from 0
+            self._base_volume = 0
+        else:
+            self._base_volume = 15
 
     def set_length(self, length):
         self._length_value = length
