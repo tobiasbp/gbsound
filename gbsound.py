@@ -419,7 +419,7 @@ class Chip:
         """
         Set the frequency for all channels
         """
-        assert len(self._channnels) == len(freq)
+        assert len(self._channnels) == len(freqs)
         for i in range(len(freqs)):
             self._channels[i].freq = freqs[i]
 
