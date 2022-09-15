@@ -115,6 +115,9 @@ class Noise():
     def sweep_up(self, sweep_up):
         pass
 
+    def set_envelope_period(self, period: int, channel:Optional[int] = None):
+        pass
+
     def __iter__(self):
         return self
 
@@ -137,8 +140,10 @@ class Channel():
         # Not playing
         self._enabled = False
 
-        self._envelope_add = False
-        self._envelope_timer = Timer(sample_rate=sample_rate, freq=64)
+        self._envelope_period: int = 1
+        self._envelope_add: bool = False
+        self._envelope_timer: Optional[Timer] = None
+        self.set_envelope_period(1)
 
         # Timer based manipulation of waveform frequency
         self._sweep_up = True
@@ -231,6 +236,10 @@ class Channel():
             self._build_square_wave(duty_cycle, len(self._waveform._data))
         )
 
+    def set_envelope_period(self, period):
+        self._envelope_period = period
+        self._envelope_timer = Timer(sample_rate=self._sample_rate, freq=int(64 // self._envelope_period))
+
     def set_envelope_add(self, envelope_add):
         self._envelope_add = envelope_add
 
@@ -317,12 +326,12 @@ class Chip():
         else:
             self._channels[channel].trig()
 
-    def sweep_enable(self, enable: bool, channel: Optional[int] = None):
+    def sweep_enable(self, enable: bool = True, channel: Optional[int] = None):
         """
         Enable/disable sweep for one or all channels
         """
         if channel is None:
-            for c in self._channels:
+            for c in [ c for c in self._channels if type(c) == Channel ]:
                 c.sweep_enable(enable)
         else:
             self._channels[channel].sweep_enable(enable)
@@ -336,6 +345,18 @@ class Chip():
                 c.sweep_up(sweep_up)
         else:
             self._channels[channel].sweep_up(sweep_up)
+
+    def set_envelope_period(self, period: int, channel:Optional[int] = None):
+        """
+        Envelope timer is divided by this value.
+        Higher number is longer envelope.
+        """
+        if channel is None:
+            for c in self._channels:
+                c.set_envelope_period(period)
+        else:
+            self._channels[channel].set_envelope_period(period)
+
 
     def envelope_add(self, envelope_add: bool, channel:int):
         self._channels[channel].set_envelope_add(envelope_add)
@@ -362,19 +383,5 @@ class Chip():
         return self
 
     def __next__(self):
-        #v = [v for v in [ next(c) for c in self._channels] if v != 0] 
-        
-        #try:
-        #    return self.volume * (sum(v) / len(v))
-        #except ZeroDivisionError:
-        #    return 0
-        #for n, c in enumerate(self._channels):
-        #    print(f"Channel {n}: {next(c)}")
-        #c_0 = next(self._channels[0])
-        #c_1 = next(self._channels[1])
-        #c_2 = next(self._channels[2])
-        
-        
-
-        #return self.volume * next(self._channels[0])
         return self.volume * sum([ next(c) for c in self._channels]) / len(self._channels)
+        
