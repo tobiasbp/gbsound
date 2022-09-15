@@ -66,22 +66,24 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0, chip=Chip()):
     event_no = 0
     no_of_channels = 3
 
+    note_on_events = []
     for track_no, track in enumerate(c):
         print(f'Track {track_no}:')
         print(str(track))
         
         track.parse()
 
-        
+        no_of_note_ons_in_track = 0
         #    pass
         for e in track:
-
             try:
                 e.message.onOff
             except:
                 pass
             else:
                 if e.message.onOff == "ON":
+                    no_of_note_ons_in_track += 1
+
                     f = get_frequency(str(e.message.note))
                     f = int(f * transpose)
                     this_event_time = e.time
@@ -90,13 +92,14 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0, chip=Chip()):
                     prev_event_time = this_event_time
                     #print("Event:",e)
                     #print("Tempo:",e.tempo)
-                    print("Track:", track_no)
-                    print("Time:", e.time)
+                    #print("Track:", track_no)
+                    #print("Time:", e.time)
                     #print("onOff:", e.message.onOff)
                     #print("Note", e.message.note)
                     #print("Frequency", f)
                     #print("MIDI channel:", e.channel)
-
+                    note_on_events.append(e)
+                    """
                     if event_no > 0:
                         # Get samples since last event
                         #for i in range((event_time_diff // ticks_pr_quarter_node) * 1):
@@ -104,6 +107,7 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0, chip=Chip()):
                             v = next(chip)
                             s = struct.pack('<h', int(v))
                             wave_file.writeframesraw(s)
+                    """
 
                     channel_no = event_no % no_of_channels
                     #print("GB channel:", channel_no)
@@ -118,20 +122,50 @@ def parse(file_midi, file_wav, bpm = 120, transpose = 1.0, chip=Chip()):
 
 
                     event_no += 1
+            
+        print(f"Notes in track {track_no}: {no_of_note_ons_in_track}")
+
+    print(f"Number of notes in song: {len(note_on_events)}")
+
+    # Sort the note events on time
+    sorted_events = sorted([e for e in note_on_events],key = lambda x: x.time)
+    
+    # Add a fake note at the end of the list to allow
+    # the last real note to be played
+    end_note = sorted_events[-1]
+    # A second to allow the last real note to ring out
+    end_note.time += int(ticks_pr_second)
+    sorted_events.append(end_note)
+
+    # FIXME: Does not play the last note
+    for i in range(len(sorted_events)-1):
+        e_now = sorted_events[i]
+        e_next = sorted_events[i+1]
+        chip_channel = i % no_of_channels
+        f = get_frequency(str(e_now.message.note))
+        #chip.set_freq(, chip_channel)
+        chip.set_freg(int(f * transpose), chip_channel)
+        chip.trig(chip_channel)
+        for i in range((e_next.time - e_now.time) * samples_pr_tick):
+            v = next(chip)
+            s = struct.pack('<h', int(v))
+            wave_file.writeframesraw(s)
 
     wave_file.close()
-    print(f"file://{Path(file_wav).resolve()}" )
+    
+    print(f"file://{Path(file_wav).resolve()}")
     print()
 
 
-#parse("./midi/tetris_2.mid", "./sounds/tetris_2.wav", bpm = 30)
-#parse("./midi/music-a-cool-remix-.mid", "./sounds/music-a-cool-remix-.wav", bpm = 60)
-#parse("./midi/tetris_remix.mid", "./sounds/tetris_remix.wav", bpm = 60)
-#parse("./midi/daisy-s-theme.mid", "./sounds/daisy-s-theme.wav", bpm = 60, transpose=0.5)
-#parse("./midi/megaman-end.mid", "./sounds/megaman-end.wav", bpm = 60, transpose=0.5)
-
 c = Chip()
 c.set_envelope_period(2)
+parse("./midi/tetris_2.mid", "./sounds/tetris_2.wav", bpm = 30, chip=c)
+parse("./midi/music-a-cool-remix-.mid", "./sounds/music-a-cool-remix-.wav", bpm = 40, chip=c)
+# This uses a lot of channel, so you should use a chip with more channels (Unlike the real game boy)
+parse("./midi/tetris_remix.mid", "./sounds/tetris_remix.wav", bpm = 30, chip=c)
+parse("./midi/daisy-s-theme.mid", "./sounds/daisy-s-theme.wav", bpm = 60, chip=c)
+parse("./midi/megaman-end.mid", "./sounds/megaman-end.wav", bpm = 60, chip=c)
+
 c.sweep_enable()
 parse("./midi/SMB3_hammer.mid", "./sounds/SMB3_hammer.wav", bpm = 120, transpose=1.0, chip=c)
 
