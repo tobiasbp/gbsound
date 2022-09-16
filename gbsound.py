@@ -429,6 +429,35 @@ class Chip:
                 c.freq = freq
         else:
             self._channels[channel].freq = freq
+    
+    def set_note(self, note:str, channel:int, A4:int=440):
+        """
+        Translate notes like 'A#4' and 'B2' to a frequency in Hz.
+        Parameter 'A4' is the reference.
+        """
+        # The available note names
+        notes: str = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
+
+        # Last character in the note is the octave
+        octave: int = int(note[-1])
+
+        # Note name is the note minus the last character (the octave)
+        note_name = note[0:-1]
+
+        # Convert the note_name to an int by looking up it's position in the 'notes' array
+        note_number:int = notes.index(note_name)
+
+        # Use octave to update the note_number to a an absolute position (In the note domain)
+        if note_number < 3:
+            note_number += 12 + ((octave - 1) * 12) + 1
+        else:
+            note_number += ((octave - 1) * 12) + 1
+
+        # Calculate the frequency
+        f =  A4 * 2 ** ((note_number - 49) / 12)
+
+        # Set the frequency
+        self.set_freq(f, channel)
 
     def set_wav_file(self, file_path: str):
 
