@@ -24,18 +24,12 @@ def get_frequency(note, A4=440):
 
 
 # A programmable sound generator (PSG)
-chip = Chip()
-
-# Setup the wave file
-wave_file = wave.open("./sounds/test_scales.wav", "wb")
-wave_file.setnchannels(1)  # Mono
-wave_file.setframerate(chip.sample_rate)
-wave_file.setsampwidth(2)  # Bytes to use for samples
+chip = Chip(wav_file="./sounds/test_scales.wav")
 
 # Play scales
 channel_no = 0
 
-for octave in range(1, 7): 
+for octave in range(1, 7):
     for note in ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]:
         # Configure chip
         chip.set_freq(get_frequency(note + str(octave)), channel_no)
@@ -43,8 +37,4 @@ for octave in range(1, 7):
 
         # Write 0.5 seconds of audio to file
         for i in range(chip.sample_rate // 2):
-            v = next(chip)
-            s = struct.pack("<h", int(v))
-            wave_file.writeframesraw(s)
-
-wave_file.close()
+            next(chip)

@@ -2,6 +2,9 @@ from enum import unique
 from typing import List, Optional
 from enum import Enum
 from random import randint
+from pathlib import Path
+import wave
+import struct
 
 
 @unique
@@ -346,7 +349,7 @@ class Chip:
     A programmable sound generator
     """
 
-    def __init__(self, sample_rate=44100):
+    def __init__(self, sample_rate=44100, wav_file: Optional[str] = None):
         self._channels = [
             Channel(sample_rate=sample_rate),  # Square
             Channel(sample_rate=sample_rate),  # Square
@@ -361,6 +364,13 @@ class Chip:
         self._sample_rate = sample_rate
 
         self.volume = 400
+
+        # An optional wav file to write samples to
+        self._wav_file = None
+
+        # If the Chip object was instantiated with a path to a wav file
+        if wav_file is not None:
+            self.set_wav_file(wav_file)
 
     @property
     def sample_rate(self):
@@ -420,10 +430,41 @@ class Chip:
         else:
             self._channels[channel].freq = freq
 
+    def set_wav_file(self, file_path: str):
+
+        # Close existing wave file
+        if self._wav_file is not None:
+            self._wav_file.close()
+
+        # Do some path checking
+        # file = Path(file_path)
+
+        self._wav_file = wave.open(file_path, "wb")
+        # Mono
+        self._wav_file.setnchannels(1)
+        self._wav_file.setframerate(self._sample_rate)
+        # Bytes to use for samples
+        # FIXME: Should 1 byte not be enough?
+        self._wav_file.setsampwidth(2)
+
+    def __del__(self):
+        """
+        Close the wav file when there are no more references to the Chip object
+        """
+        if self._wav_file is not None:
+            self._wav_file.close()
+
     def __iter__(self):
         return self
 
     def __next__(self):
-        return (
-            self.volume * sum([next(c) for c in self._channels]) / len(self._channels)
-        )
+        """
+        Return a sample
+        """
+        s = self.volume * sum([next(c) for c in self._channels]) / len(self._channels)
+
+        # Write the sample to the wave file
+        if self._wav_file is not None:
+            self._wav_file.writeframesraw(struct.pack("<h", int(s)))
+
+        return s

@@ -28,14 +28,11 @@ def get_frequency(note, A4=440):
     return A4 * 2 ** ((keyNumber - 49) / 12)
 
 
-def parse(file_midi, file_wav, bpm=120, transpose=1.0, chip=Chip()):
+def parse(chip: Chip, file_midi: str, bpm: int = 120, transpose: float = 1.0):
     """
     Higher number for speed , is slower tempo.
     """
-    print(f"Converting {file_midi} to {file_wav}")
-    # file_midi = f"midi/{file_name}.mid"
-    # file_wav = f"sounds/{file_name}.wav"
-    assert file_midi != file_wav
+    print(f"Converting {file_midi} to FOO")
 
     c = MIDIFile(file_midi)
     c.parse()
@@ -59,10 +56,12 @@ def parse(file_midi, file_wav, bpm=120, transpose=1.0, chip=Chip()):
     ), f"Samples pr second: {v}"
     print("Calculated sampler pr. second (target: 44100):", v)
 
+    """
     wave_file = wave.open(file_wav, "wb")
     wave_file.setnchannels(1)  # Mono
     wave_file.setframerate(chip.sample_rate)
     wave_file.setsampwidth(2)  # Bytes to use for samples
+    """
 
     prev_event_time = 0
     event_no = 0
@@ -141,24 +140,26 @@ def parse(file_midi, file_wav, bpm=120, transpose=1.0, chip=Chip()):
         e_now = sorted_events[i]
         e_next = sorted_events[i + 1]
         chip_channel = i % no_of_channels
+
         f = get_frequency(str(e_now.message.note))
         # chip.set_freq(, chip_channel)
         chip.set_freq(int(f * transpose), chip_channel)
         chip.trig(chip_channel)
+
         for i in range((e_next.time - e_now.time) * samples_pr_tick):
-            v = next(chip)
-            s = struct.pack("<h", int(v))
-            wave_file.writeframesraw(s)
+            next(chip)
 
-    wave_file.close()
+    # wave_file.close()
 
-    print(f"file://{Path(file_wav).resolve()}")
+    # print(f"file://{Path(file_wav).resolve()}")
     print()
 
 
 c = Chip()
 c.set_envelope_period(2)
-parse("./midi/tetris_2.mid", "./sounds/tetris_2.wav", bpm=30, chip=c)
+c.set_wav_file("./sounds/tetris_2.wav")
+parse(chip=c, file_midi="./midi/tetris_2.mid", bpm=30)
+"""
 parse(
     "./midi/music-a-cool-remix-.mid", "./sounds/music-a-cool-remix-.wav", bpm=40, chip=c
 )
@@ -171,6 +172,7 @@ c.sweep_enable()
 parse(
     "./midi/SMB3_hammer.mid", "./sounds/SMB3_hammer.wav", bpm=120, transpose=1.0, chip=c
 )
+"""
 
 # for f in Path("./midi").glob("*.mid"):
 #    file_midi = f

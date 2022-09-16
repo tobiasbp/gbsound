@@ -21,20 +21,21 @@ a part of this project.
 They were created by parsing [these MIDI files](https://github.com/tobiasbp/gbsound/tree/main/midi).
 
 ## Example of use
+Create a 1 second wav file called _test_tone.wav_ with a 440Hz note being played. 
 ```python
 from gbsound import Chip
 
 # The sound chip
-chip = Chip()
+chip = Chip("./test_tone.wav")
 
 # Configure channel 0 to oscillate at 440Hz
 chip.set_freq(440, 0)
 
-# Output sound from channel 0
+# Start channel 0
 chip.trig(0)
 
 # Get 100 samples from the sound chip
-for i in range(100):
+for i in range(chip.sample_rate):
     print(next(chip))
 ```
 
