@@ -21,7 +21,7 @@ a part of this project.
 They were created by parsing [these MIDI files](https://github.com/tobiasbp/gbsound/tree/main/midi).
 
 ## Example of use
-Create a 1 second wav file called _test_tone.wav_ with a 440Hz note being played. 
+Create a 1 second wav file called _test_tone.wav_ with the note _A4_ being played.
 ```python
 from gbsound import Chip
 
@@ -29,7 +29,7 @@ from gbsound import Chip
 chip = Chip("./test_tone.wav")
 
 # Configure channel 0 of the chip to oscillate at 440Hz
-chip.set_freq(440, 0)
+chip.set_note("A4",0)
 
 # Start channel 0 of the chip
 chip.trig(0)
