@@ -34,9 +34,11 @@ chip.set_freq(440, 0)
 # Start channel 0
 chip.trig(0)
 
-# Get 100 samples from the sound chip
+# Get no samples pr. second from the chip
 for i in range(chip.sample_rate):
-    print(next(chip))
+    # Write the sample to the wav file
+    sample = next(chip)
+    print("Sample:", sample)
 ```
 
 ## Research material
