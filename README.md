@@ -25,20 +25,19 @@ Create a 1 second wav file called _test_tone.wav_ with a 440Hz note being played
 ```python
 from gbsound import Chip
 
-# The sound chip
+# A sound chip outputting to a wav file
 chip = Chip("./test_tone.wav")
 
-# Configure channel 0 to oscillate at 440Hz
+# Configure channel 0 of the chip to oscillate at 440Hz
 chip.set_freq(440, 0)
 
-# Start channel 0
+# Start channel 0 of the chip
 chip.trig(0)
 
-# Get no samples pr. second from the chip
+# Get 1 second worth of samples from the chip
 for i in range(chip.sample_rate):
-    # Write the sample to the wav file
-    sample = next(chip)
-    print("Sample:", sample)
+    # Write a sample to the wav file
+    next(chip)
 ```
 
 ## Research material
